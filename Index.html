@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#01030a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Viajante">
+<title>Viajante — Explorador Interestelar</title>
+<link id="ficon" rel="icon">
+<link id="aticon" rel="apple-touch-icon">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#cfe6ff;
+  font-family:'Courier New',monospace;touch-action:none;overscroll-behavior:none}
+canvas{display:block}
+#vignette{position:fixed;inset:0;pointer-events:none;z-index:5;
+  background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.85) 100%)}
+#hud{position:fixed;top:0;left:0;padding:16px 20px;pointer-events:none;font-size:12px;
+  letter-spacing:1.5px;text-shadow:0 0 10px #0af;z-index:10}
+#gal{font-size:15px;color:#7fe7ff;font-weight:bold}
+#sys{font-size:12px;color:#8fa8c0;margin-bottom:12px}
+.bar{margin:7px 0;display:flex;align-items:center;gap:8px}
+.bar label{width:92px;font-size:9px;color:#5f7f9f;letter-spacing:2px}
+.track{width:140px;height:7px;background:#0a1826;border:1px solid #1d3a52;overflow:hidden}
+.track i{display:block;height:100%;width:100%;transition:width .25s}
+#fuelBar{background:linear-gradient(90deg,#0ff,#0af);box-shadow:0 0 12px #0ff}
+#hullBar{background:linear-gradient(90deg,#0f8,#0a5);box-shadow:0 0 12px #0f8}
+#cred{margin-top:10px;color:#ffd76a;font-size:14px;text-shadow:0 0 12px #fa0}
+#log{position:fixed;top:16px;right:20px;width:300px;text-align:right;font-size:12px;
+  pointer-events:none;z-index:10}
+#log div{margin-bottom:6px;padding:5px 9px;background:rgba(0,25,45,.65);
+  border-right:2px solid #0af;animation:fade .4s;text-shadow:0 0 8px #0af}
+#log div.warn{border-right-color:#f80;color:#ffc48a}
+#log div.bad{border-right-color:#f33;color:#ff9a9a}
+#log div.good{border-right-color:#0f8;color:#9dffcf}
+@keyframes fade{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+#prompt{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);font-size:13px;
+  letter-spacing:2px;color:#8ff;text-shadow:0 0 14px #0ff;pointer-events:none;
+  z-index:10;opacity:0;transition:opacity .2s;white-space:nowrap}
+#prompt.on{opacity:1}
+#prompt b{color:#fff;background:#06364d;padding:2px 8px;border:1px solid #0af;margin-right:8px}
+#help{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);font-size:10px;
+  letter-spacing:2px;color:#3d6480;z-index:10;pointer-events:none;text-align:center;line-height:1.7}
+#panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(400px,92vw);
+  background:rgba(3,14,26,.97);border:1px solid #0af;padding:22px;z-index:30;
+  box-shadow:0 0 40px rgba(0,170,255,.4),inset 0 0 60px rgba(0,80,140,.2)}
+#panel h2{font-size:17px;color:#7fe7ff;letter-spacing:2px;margin-bottom:4px;text-shadow:0 0 14px #0af}
+#panel .sub{font-size:10px;color:#5f7f9f;letter-spacing:2px;margin-bottom:16px}
+#panel .stats{display:flex;gap:10px;margin-bottom:16px}
+#panel .stats div{flex:1;background:#061c2e;border:1px solid #12405f;padding:8px;
+  text-align:center;font-size:10px;letter-spacing:1px;color:#5f7f9f}
+#panel .stats b{display:block;font-size:17px;color:#7fe7ff;margin-top:3px}
+#panel .btns{display:flex;flex-direction:column;gap:7px}
+#panel button{font-family:inherit;font-size:11px;letter-spacing:1.6px;padding:10px;
+  background:#082a42;color:#8ff;border:1px solid #12688f;cursor:pointer;text-align:left;transition:.15s}
+#panel button:hover:not(:disabled){background:#0d4666;color:#fff;box-shadow:0 0 16px rgba(0,170,255,.6)}
+#panel button:disabled{opacity:.3;cursor:not-allowed}
+#panel button.ghost{background:transparent;border-color:#2a4a60;color:#5f7f9f}
+#over{position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:50;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:20px}
+#over h1{font-size:clamp(24px,7vw,38px);letter-spacing:8px;color:#ff4d4d;text-shadow:0 0 30px #f00}
+#over p{font-size:13px;letter-spacing:1.5px;color:#8fa8c0;line-height:2}
+#over button{font-family:inherit;font-size:13px;letter-spacing:3px;padding:12px 40px;
+  background:#0a2f47;color:#7fe7ff;border:1px solid #0af;cursor:pointer;margin-top:14px}
+#touch{position:fixed;inset:0;pointer-events:none;z-index:15;display:none}
+#touch.on{display:block}
+#touch button{position:absolute;pointer-events:auto;width:64px;height:64px;border-radius:50%;
+  background:rgba(8,42,66,.55);border:1px solid #0af;color:#8ff;font-size:20px;
+  font-family:inherit;backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center}
+#touch button:active{background:rgba(13,70,102,.9);color:#fff}
+.hidden{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="vignette"></div>
+<div id="hud">
+  <div id="gal">—</div>
+  <div id="sys">—</div>
+  <div class="bar"><label>COMBUSTÍVEL</label><div class="track"><i id="fuelBar"></i></div></div>
+  <div class="bar"><label>CASCO</label><div class="track"><i id="hullBar"></i></div></div>
+  <div id="cred">₡ 0</div>
+</div>
+<div id="log"></div>
+<div id="prompt"></div>
+<div id="help">W/S — PROPULSÃO · A/D — ROTAÇÃO · E — INTERAGIR · M — MAPA · RODA — ZOOM</div>
+<div id="panel" class="hidden"></div>
+<div id="over" class="hidden"></div>
+<div id="touch">
+  <button data-k="a" style="left:16px;bottom:28px">◀</button>
+  <button data-k="d" style="left:94px;bottom:28px">▶</button>
+  <button data-k="w" style="right:16px;bottom:28px">▲</button>
+  <button data-k="s" style="right:94px;bottom:28px">▼</button>
+  <button data-k="e" style="right:16px;bottom:112px;width:56px;height:56px;font-size:15px">E</button>
+  <button data-k="m" style="right:16px;top:16px;width:52px;height:52px;font-size:15px">M</button>
+</div>
+<script>
+const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="100" fill="#01030a"/><g transform="translate(256 256) rotate(-30)"><path d="M110 0 L-60 55 L-20 0 L-60 -55 Z" fill="#c8f4ff" stroke="#7fe7ff" stroke-width="4"/><circle cx="16" cy="0" r="14" fill="#ffe97f"/></g></svg>';
+const iconUrl='data:image/svg+xml,'+encodeURIComponent(svg);
+document.getElementById('ficon').href=iconUrl;
+document.getElementById('aticon').href=iconUrl;
+</script>
+<script>
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const ri=(a,b)=>Math.floor(rnd(a,b+1));
+const cl=(v,a,b)=>v<a?a:v>b?b:v;
+const H2=Math.hypot;
+const SYL=['ka','zor','vel','ith','ara','nox','tul','omi','dra','zen','pyx','qua','sol','ryn',
+'tha','vex','lun','cra','neb','or','ix','ul','ash','bre','cyn','mor','tal','qui','esh','vor',
+'nyx','ael','dur','fen','gor','hal','jax','kel','sar','tir','wyn','zul','oph','mir'];
+const ROMAN=['','I','II','III','IV','V','VI','VII','VIII','IX'];
+const nm=(n=2)=>{let s='';const k=n+ri(0,1);for(let i=0;i<k;i++)s+=SYL[ri(0,SYL.length-1)];
+  return s[0].toUpperCase()+s.slice(1);};
+const PT=[
+ {n:'Rochoso',a:'#9a8b78',b:'#3a332c',f:[8,18],m:[15,30]},
+ {n:'Oceânico',a:'#59c6e6',b:'#0e3350',f:[14,26],m:[8,20]},
+ {n:'Gigante Gasoso',a:'#e0aa6e',b:'#6b431f',f:[30,55],m:[2,8]},
+ {n:'Vulcânico',a:'#ff6b3d',b:'#4a1408',f:[18,32],m:[25,45]},
+ {n:'Gelado',a:'#c6e8ff',b:'#3d5f7d',f:[20,34],m:[10,22]},
+ {n:'Desértico',a:'#e6c88e',b:'#7d5e30',f:[6,14],m:[20,38]},
+ {n:'Cristalino',a:'#cfaaff',b:'#3d1f6b',f:[10,18],m:[45,75]},
+ {n:'Orgânico',a:'#96e872',b:'#173f14',f:[22,38],m:[18,32]}
+];
+const ROGUE={n:'Planeta Errante',a:'#8fa2ba',b:'#101a28',f:[15,30],m:[35,60]};
+function mkPlanet(or){
+  const t=PT[ri(0,PT.length-1)];
+  return {nm:nm(2)+' '+ROMAN[ri(1,9)],t,or,a0:Math.random()*6.283,
+    sp:(0.055+Math.random()*0.05)*Math.pow(1000/or,1.5),
+    rad:30+Math.random()*80,ring:Math.random()<0.22,
+    fc:ri(1,3),mc:ri(1,3),sc:false};
+}
+function mkRogue(){
+  return {nm:nm(2)+' (Errante)',t:ROGUE,x:0,y:0,vx:0,vy:0,
+    rad:40+Math.random()*70,fc:ri(1,2),mc:ri(1,3),sc:false};
+}
+function mkSystem(){
+  const planets=[],rogues=[];let or=700;
+  const n=Math.floor(Math.random()*6);
+  for(let i=0;i<n;i++){or+=380+Math.random()*780;planets.push(mkPlanet(or));}
+  if(Math.random()<0.35)rogues.push(mkRogue());
+  if(Math.random()<0.12)rogues.push(mkRogue());
+  const hasBH=Math.random()<0.16,ba=Math.random()*6.283,bd=2800+Math.random()*2200;
+  return {nm:nm(2)+'-'+ri(100,999),
+    starC:['#ffd27f','#ffe9b0','#ff9d5c','#ff6b6b','#bcd8ff','#ffffff','#a8c0ff','#ffb0d8'][ri(0,7)],
+    starR:90+Math.random()*95,pulsar:Math.random()<0.18,
+    planets,rogues,
+    bh:hasBH,bhX:Math.cos(ba)*bd,bhY:Math.sin(ba)*bd,bhR:130+Math.random()*40,
+    wh:Math.random()<0.17,
+    whX:Math.cos(Math.random()*6.283)*2200,whY:Math.sin(Math.random()*6.283)*2200,
+    belt:Math.random()<0.55,beltR:1500+Math.random()*1500,
+    wreck:Math.random()<0.40?{looted:false}:null,
+    neb:Math.random()<0.7,visited:false,_ast:null};
+}
+const GPRE=['Nebulosa','Aglomerado','Vórtice','Coroa','Abismo','Enxame','Espiral','Maré'];
+function mkGalaxy(i){
+  const g={i,hue:Math.floor(Math.random()*360),
+    nm:GPRE[ri(0,GPRE.length-1)]+' de '+nm(2),systems:[]};
+  const n=7+Math.floor(Math.random()*6);
+  for(let k=0;k<n;k++){
+    const a=Math.random()*6.283,r=Math.pow(Math.random(),0.55)*100;
+    const s=mkSystem();
+    s.gx=Math.cos(a)*r;s.gy=Math.sin(a)*r*0.6;
+    g.systems.push(s);
+  }
+  return g;
+}
+const GAL=[];for(let i=0;i<7;i++)GAL.push(mkGalaxy(i));
+const CFG={accel:340,turn:3.1,drag:0.30,maxFuel:100,maxHull:100,starG:46,bhG:380};
+const st={ship:{x:2400,y:0,vx:0,vy:0,ang:Math.PI},
+  fuel:100,hull:100,cred:0,gi:0,si:0,
+  map:false,panel:null,over:false,thrust:false,visited:0,jumps:0};
+const keys={};
+const cam={x:0,y:0,zoom:0.55};
+let T=0,last=performance.now();
+const cvs=document.getElementById('c'),ctx=cvs.getContext('2d');
+let W=0,H=0;
+function resize(){W=cvs.width=innerWidth;H=cvs.height=innerHeight;}
+addEventListener('resize',resize);resize();
+const elGal=document.getElementById('gal'),elSys=document.getElementById('sys'),
+  elFuel=document.getElementById('fuelBar'),elHull=document.getElementById('hullBar'),
+  elCred=document.getElementById('cred'),elLog=document.getElementById('log'),
+  elPrompt=document.getElementById('prompt'),elPanel=document.getElementById('panel'),
+  elOver=document.getElementById('over'),elTouch=document.getElementById('touch');
+const bg=[];
+for(let i=0;i<700;i++)bg.push({x:Math.random(),y:Math.random(),
+  z:0.15+Math.random()*0.85,s:Math.random()*1.7+0.25,tw:Math.random()*6.28});
+const sys=()=>GAL[st.gi].systems[st.si];
+const pPos=p=>{const a=p.a0+T*p.sp;return{x:Math.cos(a)*p.or,y:Math.sin(a)*p.or};};
+function log(msg,cls=''){
+  const d=document.createElement('div');
+  d.className=cls;d.textContent=msg;elLog.appendChild(d);
+  if(elLog.children.length>7)elLog.firstChild.remove();
+  setTimeout(()=>{d.style.transition='opacity .8s';d.style.opacity='0';
+    setTimeout(()=>d.remove(),800);},6000);
+}
+function damage(n,reason){
+  st.hull=Math.max(0,st.hull-n);
+  if(reason)log(reason,'bad');
+  if(st.hull<=0)gameOver();
+}
+function gameOver(){
+  if(st.over)return;
+  st.over=true;
+  elOver.classList.remove('hidden');
+  elOver.innerHTML='<h1>NAU DESTRUÍDA</h1><p>A tua viagem terminou nas profundezas do cosmos.<br>Galáxias percorridas: <b>'+(st.gi+1)+'</b> · Planetas catalogados: <b>'+st.visited+'</b><br>Saltos espaciais: <b>'+st.jumps+'</b> · Créditos: <b>₡'+st.cred+'</b></p><button onclick="location.reload()">NOVA VIAGEM</button>';
+}
+function enterSystem(gi,si,quiet){
+  st.gi=gi;st.si=si;
+  const s=sys();s.visited=true;st.jumps++;
+  const a=Math.random()*6.283,d=1900+Math.random()*900;
+  const sh=st.ship;
+  sh.x=Math.cos(a)*d;sh.y=Math.sin(a)*d;sh.vx=0;sh.vy=0;sh.ang=a+Math.PI/2;
+  cam.x=sh.x;cam.y=sh.y;
+  for(const r of s.rogues){
+    const ra=Math.random()*6.283,rd=3200+Math.random()*2200;
+    r.x=Math.cos(ra)*rd;r.y=Math.sin(ra)*rd;
+    const sp=30+Math.random()*45,ta=ra+Math.PI+(Math.random()-0.5);
+    r.vx=Math.cos(ta)*sp;r.vy=Math.sin(ta)*sp;
+  }
+  if(s.wreck&&!s.wreck.looted){
+    const wa=Math.random()*6.283,wd=1400+Math.random()*2200;
+    s.wreck.x=Math.cos(wa)*wd;s.wreck.y=Math.sin(wa)*wd;s.wreck.r=45;
+  }
+  s._ast=[];
+  if(s.belt){
+    for(let i=0;i<44;i++){
+      s._ast.push({a:Math.random()*6.283,r:s.beltR*(0.88+Math.random()*0.24),
+        sp:(0.02+Math.random()*0.03)*(Math.random()<0.5?-1:1),
+        s:14+Math.random()*26,rot:Math.random()*6.28});
+    }
+  }
+  if(!quiet)log('Entraste no sistema '+s.nm,'good');
+  updateHUD();
+}
+function findIt(){
+  const s=sys(),sh=st.ship;let best=null;
+  for(const p of s.planets){
+    const q=pPos(p),d=H2(q.x-sh.x,q.y-sh.y);
+    if(d<p.rad+280&&(!best||d<best.d))best={kind:'planet',obj:p,d};
+  }
+  for(const r of s.rogues){
+    const d=H2(r.x-sh.x,r.y-sh.y);
+    if(d<r.rad+280&&(!best||d<best.d))best={kind:'rogue',obj:r,d};
+  }
+  if(s.wreck&&!s.wreck.looted){
+    const d=H2(s.wreck.x-sh.x,s.wreck.y-sh.y);
+    if(d<220&&(!best||d<best.d))best={kind:'wreck',obj:s.wreck,d};
+  }
+  return best;
+}
+function interact(){
+  if(st.panel||st.map||st.over)return;
+  const it=findIt();
+  if(it)openPanel(it.obj,it.kind);
+}
+function closePanel(){st.panel=null;elPanel.classList.add('hidden');}
+function openPanel(obj,kind){
+  st.panel={obj,kind};
+  elPanel.classList.remove('hidden');
+  let h='';
+  if(kind==='wreck'){
+    h+='<h2>NAU ABANDONADA</h2><div class="sub">DESTROÇOS · ORIGEM DESCONHECIDA</div><div class="btns"><button data-a="loot">Saquear os destroços</button><button data-a="close" class="ghost">Ignorar</button></div>';
+  }else{
+    const t=obj.t;
+    h+='<h2>'+obj.nm+'</h2><div class="sub">'+t.n.toUpperCase()+' · RAIO '+Math.round(obj.rad*42)+' KM'+(obj.ring?' · ANÉIS':'')+'</div><div class="stats"><div>COMBUSTÍVEL<b>'+obj.fc+'</b></div><div>MINERAIS<b>'+obj.mc+'</b></div><div>ESTADO<b>'+(obj.sc?'✓':'?')+'</b></div></div><div class="btns"><button data-a="scan">'+(obj.sc?'Reanalisar superfície':'Escanear superfície (grátis)')+'</button><button data-a="fuel" '+(obj.fc<=0?'disabled':'')+'>Colher combustível ('+obj.fc+')</button><button data-a="min" '+(obj.mc<=0?'disabled':'')+'>Extrair minerais ('+obj.mc+')</button><button data-a="repair">Reparar casco — 50₡</button><button data-a="close" class="ghost">Descolar</button></div>';
+  }
+  elPanel.innerHTML=h;
+  elPanel.querySelectorAll('button').forEach(b=>{b.onclick=()=>panelAction(b.dataset.a);});
+}
+function panelAction(a){
+  if(!st.panel)return;
+  const {obj,kind}=st.panel;
+  if(a==='close'){closePanel();return;}
+  if(a==='loot'){
+    obj.looted=true;
+    const c=60+Math.floor(Math.random()*180),f=Math.floor(Math.random()*20);
+    st.cred+=c;st.fuel=Math.min(CFG.maxFuel,st.fuel+f);
+    log('Destroços saqueados: +₡'+c+' e +'+f+' combustível','good');
+    closePanel();updateHUD();return;
+  }
+  if(a==='scan'){
+    if(!obj.sc){obj.sc=true;st.visited++;
+      const b=20+Math.floor(Math.random()*45)+(obj.t.n==='Cristalino'?40:0);
+      st.cred+=b;log('Novo mundo catalogado: '+obj.nm+' (+₡'+b+')','good');
+    }else log('Superfície de '+obj.nm+' já analisada.');
+    openPanel(obj,kind);updateHUD();return;
+  }
+  if(a==='fuel'){
+    if(obj.fc<=0)return;obj.fc--;
+    const amt=ri(obj.t.f[0],obj.t.f[1]);
+    st.fuel=Math.min(CFG.maxFuel,st.fuel+amt);
+    log('+'+amt+' de combustível extraído','good');
+    openPanel(obj,kind);updateHUD();return;
+  }
+  if(a==='min'){
+    if(obj.mc<=0)return;obj.mc--;
+    const amt=ri(obj.t.m[0],obj.t.m[1]);
+    st.cred+=amt;log('+₡'+amt+' em minerais','good');
+    openPanel(obj,kind);updateHUD();return;
+  }
+  if(a==='repair'){
+    if(st.cred<50){log('Créditos insuficientes','warn');return;}
+    if(st.hull>=CFG.maxHull){log('O casco já está intacto');return;}
+    st.cred-=50;st.hull=Math.min(CFG.maxHull,st.hull+35);
+    log('Casco reparado (+35)','good');
+    openPanel(obj,kind);updateHUD();return;
+  }
+}
+function toggleMap(){if(st.panel||st.over)return;st.map=!st.map;}
+function mapT(){
+  const g=GAL[st.gi];let mx=1;
+  for(const s of g.systems)mx=Math.max(mx,H2(s.gx,s.gy));
+  return{sc:Math.min(W,H)*0.40/Math.max(mx,40),cx:W/2,cy:H/2};
+}
+const sScr=(s,t)=>({x:t.cx+s.gx*t.sc,y:t.cy+s.gy*t.sc});
+cvs.addEventListener('click',e=>{
+  if(!st.map)return;
+  const t=mapT(),g=GAL[st.gi];let best=null;
+  for(let i=0;i<g.systems.length;i++){
+    const p=sScr(g.systems[i],t),d=H2(p.x-e.clientX,p.y-e.clientY);
+    if(d<24&&(!best||d<best.d))best={i,d};
+  }
+  if(!best)return;
+  if(best.i===st.si){st.map=false;return;}
+  const cur=g.systems[st.si],tg=g.systems[best.i];
+  const cost=Math.round(H2(tg.gx-cur.gx,tg.gy-cur.gy)*0.16+3);
+  if(st.fuel<cost){log('Combustível insuficiente ('+cost+' necessário)','warn');return;}
+  st.fuel-=cost;st.map=false;
+  enterSystem(st.gi,best.i);
+  log('Salto espacial concluído (−'+cost+' combustível)','good');
+});
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(!e.repeat){
+    if(k==='m')toggleMap();
+    if(k==='e')interact();
+    if(k==='escape'){
+      if(st.panel)closePanel();
+      else if(st.map)st.map=false;
+    }
+  }
+  keys[k]=true;
+  if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();
+});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+addEventListener('wheel',e=>{
+  cam.zoom=cl(cam.zoom*(e.deltaY>0?0.88:1.14),0.10,1.8);
+},{passive:true});
+if('ontouchstart' in window)elTouch.classList.add('on');
+elTouch.querySelectorAll('button').forEach(b=>{
+  const k=b.dataset.k;
+  const on=e=>{e.preventDefault();
+    if(k==='e')interact();
+    else if(k==='m')toggleMap();
+    else keys[k]=true;};
+  const off=e=>{e.preventDefault();keys[k]=false;};
+  b.addEventListener('touchstart',on,{passive:false});
+  b.addEventListener('touchend',off,{passive:false});
+  b.addEventListener('touchcancel',off,{passive:false});
+  b.addEventListener('mousedown',on);
+  b.addEventListener('mouseup',off);
+  b.addEventListener('mouseleave',off);
+});
+function update(dt){
+  if(st.over||st.panel||st.map)return;
+  T+=dt;
+  const sh=st.ship,s=sys();
+  if(keys['a']||keys['arrowleft'])sh.ang-=CFG.turn*dt;
+  if(keys['d']||keys['arrowright'])sh.ang+=CFG.turn*dt;
+  st.thrust=false;
+  if(keys['w']||keys['arrowup']){
+    sh.vx+=Math.cos(sh.ang)*CFG.accel*dt;
+    sh.vy+=Math.sin(sh.ang)*CFG.accel*dt;
+    st.thrust=true;
+  }
+  if(keys['s']||keys['arrowdown']){
+    sh.vx-=Math.cos(sh.ang)*CFG.accel*0.62*dt;
+    sh.vy-=Math.sin(sh.ang)*CFG.accel*0.62*dt;
+  }
+  const r=H2(sh.x,sh.y);
+  if(r>10){
+    const g=Math.min(CFG.starG*Math.pow(1400/Math.max(r,260),2),520);
+    sh.vx-=sh.x/r*g*dt;sh.vy-=sh.y/r*g*dt;
+  }
+  if(s.bh){
+    const dx=s.bhX-sh.x,dy=s.bhY-sh.y,d=H2(dx,dy);
+    if(d>1){
+      const g=Math.min(CFG.bhG*Math.pow(1500/Math.max(d,180),2),4200);
+      sh.vx+=dx/d*g*dt;sh.vy+=dy/d*g*dt;
+    }
+    if(d<s.bhR){bhJump();return;}
+  }
+  if(s.wh&&H2(s.whX-sh.x,s.whY-sh.y)<140){whJump();return;}
+  const damp=Math.exp(-CFG.drag*dt);
+  sh.vx*=damp;sh.vy*=damp;
+  sh.x+=sh.vx*dt;sh.y+=sh.vy*dt;
+  if(r<s.starR){
+    damage(22,'Radiação estelar crítica! Afasta-te da estrela!');
+    const nx=sh.x/(r||1),ny=sh.y/(r||1);
+    sh.vx=nx*420;sh.vy=ny*420;
+    sh.x=nx*(s.starR+30);sh.y=ny*(s.starR+30);
+  }
+  for(const rg of s.rogues){
+    rg.x+=rg.vx*dt;rg.y+=rg.vy*dt;
+    if(H2(rg.x,rg.y)>7200){
+      const a=Math.random()*6.283,d=5000;
+      rg.x=Math.cos(a)*d;rg.y=Math.sin(a)*d;
+      const ta=a+Math.PI+(Math.random()-0.5),sp=30+Math.random()*45;
+      rg.vx=Math.cos(ta)*sp;rg.vy=Math.sin(ta)*sp;
+    }
+  }
+  if(s._ast){
+    for(const a of s._ast){
+      a.a+=a.sp*dt;
+      const ax=Math.cos(a.a)*a.r,ay=Math.sin(a.a)*a.r;
+      const d=H2(ax-sh.x,ay-sh.y);
+      if(d<a.s+18){
+        damage(6,'Colisão com asteroide!');
+        const nx=(sh.x-ax)/(d||1),ny=(sh.y-ay)/(d||1);
+        sh.vx=nx*260;sh.vy=ny*260;
+        sh.x=ax+nx*(a.s+26);sh.y=ay+ny*(
